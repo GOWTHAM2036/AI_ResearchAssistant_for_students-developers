@@ -2,6 +2,17 @@
 name = "ai-research-assistant"
 version = "0.1.0"
 requires-python = ">=3.12"
+dependencies = [
+    "Flask==3.1.0",
+    "Flask-Cors==5.0.0",
+    "groq==0.25.0",
+    "openai==1.79.0",
+    "duckduckgo-search==7.5.3",
+    "python-dotenv==1.1.0",
+    "requests==2.32.3",
+    "beautifulsoup4==4.12.3",
+    "gunicorn==22.0.0"
+]
 
 [tool.vercel]
 entrypoint = "backend.app:app"
