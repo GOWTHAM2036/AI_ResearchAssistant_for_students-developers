@@ -3,7 +3,6 @@
   "version": 2,
   "functions": {
     "backend/app.py": {
-      "runtime": "@vercel/python",
       "excludeFiles": "{backend/tests/**,**/__pycache__/**,**/*.pyc}"
     }
   },
