@@ -55,7 +55,7 @@ cp .env.example .env      # Mac/Linux
 python -m backend.app
 ```
 
-Open **http://localhost:5000** in your browser.
+Open **http://localhost:5000/login** in your browser (or `/`, which redirects to `/login`).
 
 ### 4. Use
 1. Enter a research topic (e.g., "EV battery technology 2026")

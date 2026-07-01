@@ -1,24 +1,62 @@
 """
 Flask Application — serves the frontend and provides SSE streaming
-for the multi-agent pipeline.
+for the multi-agent pipeline, with integrated JWT authentication.
 """
 import os
 import sys
+from datetime import timedelta
 
-# Add project root to path so `backend.*` imports work
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path so `backend.*` and `auth_service.*` imports work
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _PROJECT_ROOT)
 
-from flask import Flask, Response, request, jsonify, send_from_directory
+from flask import Flask, Response, request, jsonify, send_from_directory, render_template, redirect, url_for
 from flask_cors import CORS
 from backend.orchestrator import Orchestrator
 from backend.config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG, GROQ_API_KEY
 from backend.history_store import init_history_store, list_history_entries, get_history_entry
 
+# ── Auth system imports ──────────────────────────────────
+from auth_service.app.extensions import db, bcrypt, jwt
+from auth_service.app.routes.auth_routes import auth_bp
+from auth_service.app.routes.protected_routes import protected_bp
+from auth_service.app.routes.google_routes import google_bp
+from auth_service.app.routes.phone_routes import phone_bp
+
 app = Flask(
     __name__,
-    static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend"),
+    static_folder=os.path.join(_PROJECT_ROOT, "frontend"),
+    template_folder=os.path.join(_PROJECT_ROOT, "auth_service", "app", "templates"),
 )
 CORS(app)
+
+# ── Auth config ──────────────────────────────────────────
+from dotenv import load_dotenv
+load_dotenv(os.path.join(_PROJECT_ROOT, ".env"))
+
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
+app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-me-in-prod-min-32bytes!")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(_PROJECT_ROOT, 'auth.db')}")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["BCRYPT_LOG_ROUNDS"] = 4  # fast for dev, increase for prod
+
+# ── Initialize auth extensions ───────────────────────────
+db.init_app(app)
+bcrypt.init_app(app)
+jwt.init_app(app)
+
+# ── Register auth blueprints ─────────────────────────────
+app.register_blueprint(auth_bp, url_prefix="/api/auth")
+app.register_blueprint(protected_bp, url_prefix="/api")
+app.register_blueprint(google_bp, url_prefix="/api/auth/google")
+app.register_blueprint(phone_bp, url_prefix="/api/auth/phone")
+
+# ── Create DB tables ─────────────────────────────────────
+with app.app_context():
+    from auth_service.app.models.user import User  # noqa: F401 — needed so SQLAlchemy knows the model
+    db.create_all()
+
 init_history_store()
 
 
@@ -92,11 +130,36 @@ def run_pipeline():
     )
 
 
-# ── Serve frontend ──────────────────────────────────────
+# ── Entry/login routes ──────────────────────────────────
 
 @app.route("/")
-def index():
+def root():
+    """Canonical entry route — redirect to /login."""
+    return redirect(url_for("login_page"))
+
+
+@app.route("/login")
+def login_page():
+    """Serve the login/register page."""
+    return render_template("auth.html")
+
+
+# ── Serve main app at /dashboard (after login) ──────────
+
+@app.route("/dashboard")
+def dashboard():
+    """Serve the main AI Research Assistant frontend.
+    Auth check is done client-side — if no token in localStorage,
+    the frontend JS redirects to /login."""
     return send_from_directory(app.static_folder, "index.html")
+
+
+# ── Logout route ────────────────────────────────────────
+
+@app.route("/logout")
+def logout():
+    """Redirect to login page. Token is cleared client-side."""
+    return redirect(url_for('login_page'))
 
 
 @app.route("/<path:path>")

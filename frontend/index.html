@@ -9,6 +9,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // ── Auth Guard: redirect to login if no token ──────────
+    (function() {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        window.location.href = '/login';
+      }
+    })();
+  </script>
 </head>
 <body>
   <!-- ── Animated Background ── -->
@@ -42,6 +51,21 @@
       <div class="header__badge" id="statusBadge">
         <span class="header__dot"></span>
         <span>Ready</span>
+      </div>
+      <div class="user-profile" id="userProfile" style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
+        <span id="displayName" style="font-size: 0.85rem; font-weight: 500; color: #94a3b8;">User</span>
+        <button id="logoutBtn" onclick="doLogout()" style="
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          color: #ef4444;
+          padding: 6px 16px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 0.8rem;
+          font-weight: 500;
+          font-family: inherit;
+          transition: background 0.2s;
+        " onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'">Sign Out</button>
       </div>
     </header>
 

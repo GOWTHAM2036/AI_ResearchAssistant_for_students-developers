@@ -1,9 +1,22 @@
+# ── Core Flask & Extensions ──────────────────────────────────────────────────
 Flask==3.1.0
-Flask-Cors==5.0.0
+flask-cors==5.0.0
+flask-sqlalchemy==3.1.1
+Flask-Migrate==4.0.7
+flask-jwt-extended==4.6.0
+Flask-Bcrypt==1.0.1
+
+# ── AI & Research Tools ──────────────────────────────────────────────────────
 groq==0.25.0
 openai==1.79.0
 duckduckgo-search==7.5.3
+beautifulsoup4==4.12.3
+
+# ── Utils & Production ───────────────────────────────────────────────────────
 python-dotenv==1.1.0
 requests==2.32.3
-beautifulsoup4==4.12.3
+marshmallow==3.21.3
 gunicorn==22.0.0
+
+# ── Database (Uncomment for PostgreSQL) ──────────────────────────────────────
+# psycopg2-binary==2.9.9

@@ -6,6 +6,7 @@ let startTime = null;
 let briefingHtml = "";
 let historyEntries = [];
 let selectedHistoryId = null;
+const LOGIN_URL = "/login";
 
 const AGENT_COLORS = {
   Manager: "#7c3aed",
@@ -15,6 +16,53 @@ const AGENT_COLORS = {
   Delivery: "#dc2626",
   System: "#64748b",
 };
+
+async function verifySessionOrRedirect() {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    window.location.href = LOGIN_URL;
+    return false;
+  }
+
+  try {
+    const response = await fetch("/api/protected", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user_name");
+      localStorage.removeItem("user_email");
+      window.location.href = LOGIN_URL;
+      return false;
+    }
+  } catch (error) {
+    // If backend is temporarily unavailable, keep the user on the page.
+  }
+
+  return true;
+}
+
+async function doLogout() {
+  const token = localStorage.getItem("access_token");
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  } catch (error) {
+    // Keep client-side logout reliable even if server logout call fails.
+  }
+
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("user_name");
+  localStorage.removeItem("user_email");
+  window.location.href = LOGIN_URL;
+}
+
+window.doLogout = doLogout;
 
 function startPipeline() {
   const topicInput = document.getElementById("topicInput");
@@ -374,6 +422,16 @@ document.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("load", async () => {
+  const sessionIsValid = await verifySessionOrRedirect();
+  if (!sessionIsValid) return;
+
+  // Set user profile
+  const userName = localStorage.getItem('user_name');
+  if (userName) {
+    const displayEl = document.getElementById('displayName');
+    if (displayEl) displayEl.textContent = userName;
+  }
+
   try {
     const resp = await fetch("/api/health");
     const data = await resp.json();
