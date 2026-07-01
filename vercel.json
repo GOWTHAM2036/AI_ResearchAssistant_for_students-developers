@@ -1,15 +1,11 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "builds": [
-    {
-      "src": "backend/app.py",
-      "use": "@vercel/python"
+  "functions": {
+    "backend/app.py": {
+      "runtime": "@vercel/python",
+      "excludeFiles": "{backend/tests/**,**/__pycache__/**,**/*.pyc}"
     }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "backend/app.py"
-    }
-  ]
+  },
+  "routes": [{ "src": "/(.*)", "dest": "backend/app.py" }]
 }
