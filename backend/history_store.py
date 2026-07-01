@@ -1,6 +1,7 @@
 """Persistence for generated briefings history."""
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,7 +9,10 @@ from typing import Dict, List, Optional
 
 
 _ROOT = Path(__file__).resolve().parent.parent
-_DB_DIR = _ROOT / "data"
+if os.getenv("VERCEL"):
+    _DB_DIR = Path("/tmp/data")
+else:
+    _DB_DIR = _ROOT / "data"
 _DB_PATH = _DB_DIR / "history.db"
 _MAX_HTML_CHARS = 350_000
 
