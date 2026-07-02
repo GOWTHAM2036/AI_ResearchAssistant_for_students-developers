@@ -58,14 +58,16 @@ def google_login():
         )
 
         if google_resp.status_code != 200:
+            print(f"[GOOGLE AUTH ERROR] Google token verification failed (status {google_resp.status_code}): {google_resp.text}", flush=True)
             logger.warning("Google token verification failed: %s", google_resp.text)
-            return error_response("Invalid Google token.", status_code=401)
+            return error_response(f"Invalid Google token: {google_resp.text}", status_code=401)
 
         google_data = google_resp.json()
 
         # Validate the audience (client ID) matches ours
         expected_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
         if expected_client_id and google_data.get("aud") != expected_client_id:
+            print(f"[GOOGLE AUTH ERROR] Token audience mismatch. Expected: {expected_client_id}, Got: {google_data.get('aud')}", flush=True)
             return error_response("Token audience mismatch.", status_code=401)
 
         google_sub = google_data.get("sub")       # unique Google user ID
@@ -73,6 +75,7 @@ def google_login():
         name = google_data.get("name", email.split("@")[0] if email else "Google User")
 
         if not google_sub:
+            print("[GOOGLE AUTH ERROR] Invalid token payload: missing 'sub' claim.", flush=True)
             return error_response("Invalid token payload.", status_code=401)
 
         # ── Find or create user ───────────────────────────────────────────────

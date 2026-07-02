@@ -40,6 +40,7 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(_PROJECT_ROOT, 'auth.db')}")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["BCRYPT_LOG_ROUNDS"] = 4  # fast for dev, increase for prod
+app.config["GOOGLE_CLIENT_ID"] = os.environ.get("GOOGLE_CLIENT_ID", "")
 
 # ── Initialize auth extensions ───────────────────────────
 db.init_app(app)

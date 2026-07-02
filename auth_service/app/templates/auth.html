@@ -537,13 +537,13 @@
                 <div class="divider"><span>OR</span></div>
                 
                 <!-- Google Login Button -->
-                <div id="g_id_onload"
-                     data-client_id="458874729818-0ci90s9s6u8dtl70rkea9iuohd3r77sn.apps.googleusercontent.com"
-                     data-context="signin"
-                     data-ux_mode="popup"
-                     data-callback="handleGoogleLogin"
-                     data-auto_prompt="false">
-                </div>
+                 <div id="g_id_onload"
+                      data-client_id="{{ config['GOOGLE_CLIENT_ID'] or '458874729818-0ci90s9s6u8dtl70rkea9iuohd3r77sn.apps.googleusercontent.com' }}"
+                      data-context="signin"
+                      data-ux_mode="popup"
+                      data-callback="handleGoogleLogin"
+                      data-auto_prompt="false">
+                 </div>
                 <div class="google-btn-wrapper" style="display: flex; justify-content: center; width: 100%; overflow: hidden; border-radius: 10px;">
                     <div class="g_id_signin"
                          data-type="standard"
