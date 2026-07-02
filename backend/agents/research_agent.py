@@ -1,10 +1,11 @@
-﻿"""
+"""
 Research Agent: gathers high-quality web evidence for downstream analysis.
 """
 import re
 from typing import Any, Callable, Dict, List, Optional
 
 from backend.agents.base_agent import BaseAgent
+from backend.agents.manager_agent import build_queries
 from backend.tools.web_search import fetch_article_body, search_news, search_web
 
 
@@ -25,11 +26,14 @@ class ResearchAgent(BaseAgent):
         self.emit_status("working")
 
         topic = input_data.get("topic", "AI technology")
+        intent = input_data.get("intent", "educational")
+        search_strategy = input_data.get("search_strategy", "knowledge")
         seed_queries = input_data.get("search_queries", [])
-        queries = self._build_query_set(topic=topic, seed_queries=seed_queries)
+        
+        queries = self._build_query_set(topic=topic, seed_queries=seed_queries, intent=intent)
 
         self.emit_log(f"Starting web research for: '{topic}'")
-        self.emit_log(f"Executing {len(queries)} ranked search queries")
+        self.emit_log(f"Executing {len(queries)} ranked search queries (intent={intent}, strategy={search_strategy})")
 
         collected: List[Dict] = []
         queries_succeeded = 0
@@ -48,14 +52,15 @@ class ResearchAgent(BaseAgent):
                 self.emit_log(f"Search error: {str(exc)[:120]}")
 
         news_hits: List[Dict] = []
-        try:
-            self.emit_log("Searching latest news")
-            news_hits = search_news(f"{topic} latest", max_results=8)
-            for n in news_hits:
-                n["matched_query"] = "news"
-                collected.append(n)
-        except Exception as exc:
-            self.emit_log(f"News search error: {str(exc)[:120]}")
+        if search_strategy == "news":
+            try:
+                self.emit_log("Searching latest news")
+                news_hits = search_news(f"{topic} latest", max_results=8)
+                for n in news_hits:
+                    n["matched_query"] = "news"
+                    collected.append(n)
+            except Exception as exc:
+                self.emit_log(f"News search error: {str(exc)[:120]}")
 
         ranked_all = self._merge_and_rank(collected)
         selected_sources = self._pick_diverse_sources(ranked_all, target=6)
@@ -96,6 +101,8 @@ class ResearchAgent(BaseAgent):
 
         payload = {
             "topic": topic,
+            "intent": intent,
+            "search_strategy": search_strategy,
             "focus_areas": input_data.get("focus_areas", []),
             "raw_search_text": raw_search_text,
             "queries_executed": queries_succeeded,
@@ -109,21 +116,15 @@ class ResearchAgent(BaseAgent):
         self.emit_status("done")
         return payload
 
-    def _build_query_set(self, topic: str, seed_queries: List[str]) -> List[str]:
+    def _build_query_set(self, topic: str, seed_queries: List[str], intent: str = "educational") -> List[str]:
         queries: List[str] = []
         for q in seed_queries:
             cleaned = (q or "").strip()
             if cleaned:
                 queries.append(cleaned)
 
-        # Add robust default angles to improve retrieval completeness.
-        defaults = [
-            f"{topic} latest developments 2026",
-            f"{topic} market size forecast",
-            f"{topic} key companies products",
-            f"{topic} official report statistics",
-            f"{topic} risks and limitations",
-        ]
+        # Add robust default angles based on intent to improve retrieval completeness.
+        defaults = build_queries(topic, intent)
         queries.extend(defaults)
 
         deduped: List[str] = []

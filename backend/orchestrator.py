@@ -1,4 +1,4 @@
-﻿"""
+"""
 Orchestrator: chains agents and streams SSE events.
 Pipeline: Manager -> Research -> Analysis -> Writer -> Delivery
 """
@@ -8,7 +8,7 @@ from typing import Generator
 
 from backend.agents.analysis_agent import AnalysisAgent
 from backend.agents.delivery_agent import DeliveryAgent
-from backend.agents.manager_agent import ManagerAgent
+from backend.agents.manager_agent import ManagerAgent, build_queries
 from backend.agents.research_agent import ResearchAgent
 from backend.agents.writer_agent import WriterAgent
 from backend.history_store import save_history_entry
@@ -55,6 +55,8 @@ class Orchestrator:
                 {
                     "agent": "Manager",
                     "data": {
+                        "intent": plan.get("intent", "educational"),
+                        "search_strategy": plan.get("search_strategy", "knowledge"),
                         "search_queries": len(plan.get("search_queries", [])),
                         "focus_areas": len(plan.get("focus_areas", [])),
                     },
@@ -65,10 +67,32 @@ class Orchestrator:
         except Exception as exc:
             emit("error", {"agent": "Manager", "message": str(exc)[:200]})
             yield from flush_events()
+            
+            # Simple heuristic fallback classification
+            topic_l = topic.lower()
+            inferred_intent = "educational"
+            if any(kw in topic_l for kw in ["latest", "news", "recent", "update", "developments", "announcement"]):
+                inferred_intent = "latest_news"
+            elif any(kw in topic_l for kw in ["vs", "compare", "comparison", "difference between", "alternative"]):
+                inferred_intent = "comparison"
+            elif any(kw in topic_l for kw in ["how to", "tutorial", "guide", "steps", "install", "setup"]):
+                inferred_intent = "tutorial"
+            
+            inferred_strategy = "knowledge"
+            if inferred_intent == "latest_news":
+                inferred_strategy = "news"
+            elif inferred_intent == "comparison":
+                inferred_strategy = "comparison"
+            elif inferred_intent == "tutorial":
+                inferred_strategy = "tutorial"
+
+            fallback_queries = build_queries(topic, inferred_intent)
             plan = {
                 "topic": topic,
-                "search_queries": [f"{topic} latest developments"],
-                "focus_areas": ["Overview"],
+                "intent": inferred_intent,
+                "search_strategy": inferred_strategy,
+                "search_queries": fallback_queries,
+                "focus_areas": ["Overview and Context"],
             }
 
         # Stage 2: Research
@@ -105,7 +129,9 @@ class Orchestrator:
             yield from flush_events()
             research_data = {
                 "topic": topic,
-                "focus_areas": [],
+                "intent": plan.get("intent", "educational"),
+                "search_strategy": plan.get("search_strategy", "knowledge"),
+                "focus_areas": plan.get("focus_areas", []),
                 "raw_search_text": "",
                 "queries_executed": 0,
                 "total_sources": 0,
@@ -147,6 +173,8 @@ class Orchestrator:
             yield from flush_events()
             analysis = {
                 "topic": topic,
+                "intent": research_data.get("intent", "educational"),
+                "search_strategy": research_data.get("search_strategy", "knowledge"),
                 "insights": [],
                 "executiveSummary": f"Analysis failed for {topic}",
                 "confidenceScore": 40,
@@ -188,7 +216,13 @@ class Orchestrator:
         except Exception as exc:
             emit("error", {"agent": "Writer", "message": str(exc)[:200]})
             yield from flush_events()
-            briefing = {"topic": topic, "html": "<p>Briefing generation failed.</p>", "word_count": 0}
+            briefing = {
+                "topic": topic,
+                "intent": analysis.get("intent", "educational"),
+                "search_strategy": analysis.get("search_strategy", "knowledge"),
+                "html": "<p>Briefing generation failed.</p>",
+                "word_count": 0,
+            }
 
         # Stage 5: Delivery
         try:
@@ -207,6 +241,8 @@ class Orchestrator:
                 "topic": topic,
                 "html": briefing.get("html", ""),
                 "email": email,
+                "intent": briefing.get("intent", "educational"),
+                "search_strategy": briefing.get("search_strategy", "knowledge"),
             }
             delivery = DeliveryAgent(emit=emit)
             result = delivery.run(delivery_input)

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Analysis Agent: synthesizes researched evidence into structured insights.
 Includes deterministic non-LLM synthesis so final output remains useful
 when the model endpoint is unavailable.
@@ -12,12 +12,17 @@ from backend.agents.base_agent import BaseAgent
 SYSTEM_PROMPT = """You are an Analyst Agent. Below are REAL search results about '{topic}'.
 Your job is to extract specific facts only.
 
+INTENT-SPECIFIC FOCUS:
+{intent_guidance}
+
 SEARCH DATA:
 {raw_search_text}
 
 Strict output rules:
 - Every insight must contain at least one concrete entity: company, product, number, percentage, or date.
 - If data is weak, use: 'Insufficient data'.
+- In the competitiveLandscape, identify actual entities (companies, products, organizations, frameworks, technologies).
+- NEVER use domains, TLDs, or news websites (e.g. NEVER use 'insideevs', 'fleetworld', 'reuters.com' etc. as players).
 - Return ONLY valid JSON with this schema:
 {
   "insights": [
@@ -145,13 +150,68 @@ class AnalysisAgent(BaseAgent):
         self.emit_status("working")
 
         topic = input_data.get("topic", "Unknown topic")
+        intent = input_data.get("intent", "educational")
+        search_strategy = input_data.get("search_strategy", "knowledge")
         raw_search_text = input_data.get("raw_search_text", "")
         raw_results = input_data.get("raw_results", [])
         raw_news = input_data.get("raw_news", [])
 
         self.emit_log(f"Analyzing {len(raw_search_text)} characters of evidence")
 
-        prompt = SYSTEM_PROMPT.replace("{topic}", topic).replace("{raw_search_text}", raw_search_text)
+        # Dynamically customize intent focus instructions
+        intent_guidance = ""
+        if intent == "educational":
+            intent_guidance = (
+                "Since this is an Educational topic, focus your 5 key insights and executive summary on explaining the topic, "
+                "detailing its advantages, disadvantages, practical applications, and addressing common FAQs."
+            )
+        elif intent == "comparison":
+            intent_guidance = (
+                "Since this is a Comparison topic, focus your 5 key insights and executive summary on comparing the options/entities, "
+                "highlighting their strengths and weaknesses, comparing them across dimensions (e.g. Performance, Cost, Maturity, Ecosystem), "
+                "and declaring/recommending a clear winner/recommendation."
+            )
+        elif intent == "latest_news":
+            intent_guidance = (
+                "Since this is a News topic, focus your 5 key insights and executive summary on a timeline of events, major developments, "
+                "immediate industry/market impact, and future implications."
+            )
+        elif intent == "recommendation":
+            intent_guidance = (
+                "Since this is a Recommendation topic, focus your 5 key insights and executive summary on pros, cons, target audience "
+                "(who should choose it), and price/performance value."
+            )
+        elif intent == "research":
+            intent_guidance = (
+                "Since this is a Research topic, focus your 5 key insights and executive summary on research methodology, empirical evidence, "
+                "limitations of the studies, and areas/directions for future work."
+            )
+        elif intent == "tutorial":
+            intent_guidance = (
+                "Since this is a Tutorial topic, focus your 5 key insights and executive summary on step-by-step instructions, code/setup configuration, "
+                "concrete examples, and common pitfalls."
+            )
+        elif intent == "troubleshooting":
+            intent_guidance = (
+                "Since this is a Troubleshooting topic, focus your 5 key insights and executive summary on error symptoms, root causes, "
+                "diagnostic/investigation steps, and fix resolutions/prevention."
+            )
+        elif intent == "historical":
+            intent_guidance = (
+                "Since this is a Historical topic, focus your 5 key insights and executive summary on historical milestones, timeline, "
+                "evolution of the topic, and long-term context."
+            )
+        elif intent == "opinion":
+            intent_guidance = (
+                "Since this is an Opinion/Analysis topic, focus your 5 key insights and executive summary on presenting balanced viewpoints, "
+                "neutral and objective evaluation of different arguments, and expert perspectives."
+            )
+        else:
+            intent_guidance = (
+                "Focus your 5 key insights and executive summary on key facts, technical architecture, and future outlook."
+            )
+
+        prompt = SYSTEM_PROMPT.replace("{topic}", topic).replace("{raw_search_text}", raw_search_text).replace("{intent_guidance}", intent_guidance)
         user_prompt = f"Analyze the data and return strict JSON for topic: {topic}"
 
         fallback = self._build_fallback(topic)
@@ -165,17 +225,18 @@ class AnalysisAgent(BaseAgent):
                 self.emit_log("LLM analysis weak; switching to deterministic evidence synthesis")
                 analysis = self._build_from_sources(topic, raw_results, raw_news)
 
-            self.emit_log(
-                f"Analysis complete: {len(analysis['insights'])} insights, confidence {analysis['confidenceScore']}%"
-            )
-            self.emit_status("done")
-            return analysis
-
         except Exception as exc:
             self.emit_log(f"Analysis failed: {str(exc)[:120]} - using deterministic synthesis")
             analysis = self._build_from_sources(topic, raw_results, raw_news)
-            self.emit_status("done")
-            return analysis
+            
+        analysis["intent"] = intent
+        analysis["search_strategy"] = search_strategy
+        
+        self.emit_log(
+            f"Analysis complete: {len(analysis['insights'])} insights, confidence {analysis['confidenceScore']}%"
+        )
+        self.emit_status("done")
+        return analysis
 
     def _normalize_analysis(self, analysis: Dict, topic: str, raw_results: List[Dict], raw_news: List[Dict]) -> Dict:
         insights = analysis.get("insights", [])
@@ -332,34 +393,58 @@ class AnalysisAgent(BaseAgent):
         }
 
     def _build_competitive(self, topic: str, raw_results: List[Dict]) -> Dict:
-        corpus = " ".join(
-            _clean(r.get("title", "")) + " " + _clean(r.get("snippet", ""))
-            for r in raw_results[:12]
-        ).lower()
+        # Extract entities using LLM reasoning from titles and snippets
+        corpus_list = []
+        for r in raw_results[:8]:
+            title = r.get("title", "")
+            snippet = r.get("snippet", "")
+            if title or snippet:
+                corpus_list.append(f"- Title: {title} | Snippet: {snippet}")
+        corpus = "\n".join(corpus_list)
 
-        players: List[str] = []
+        system_prompt = (
+            "You are an entity extractor. Identify the top 3 actual entities (companies, products, organizations, frameworks, technologies) "
+            "relevant to the topic from the provided search results. "
+            "Do NOT extract domains, news websites, TLDs, or search engine names (e.g. avoid 'techcrunch.com', 'insideevs', 'fleetworld', 'google search', etc.). "
+            "Return ONLY a JSON list of strings, for example: [\"Entity1\", \"Entity2\", \"Entity3\"]."
+        )
+        user_prompt = f"Topic: {topic}\nSearch Results:\n{corpus}"
+
+        players = []
+        if getattr(self, "client", None) is not None:
+            try:
+                res = self.call_llm(system_prompt, user_prompt, temperature=0.1)
+                players = self.parse_json(res, [])
+                if not isinstance(players, list):
+                    players = []
+                players = [str(p).strip() for p in players if p and str(p).strip()]
+            except Exception as exc:
+                if hasattr(self, "_emit"):
+                    self.emit_log(f"Entity extraction LLM call failed: {exc}")
+
+        # Fallback to topic seeds if LLM fails or doesn't return enough players
+        for seed in self._topic_seed_players(topic):
+            if seed not in players:
+                players.append(seed)
+
+        # If still not enough, let's fall back to predefined COMPANY_HINTS that are in the corpus
+        corpus_lower = corpus.lower()
         for name in COMPANY_HINTS:
-            if name.lower() in corpus and name not in players:
+            if name.lower() in corpus_lower and name not in players:
                 players.append(name)
             if len(players) >= 3:
                 break
 
-        for seed in self._topic_seed_players(topic):
-            if seed not in players:
-                players.append(seed)
-            if len(players) >= 3:
-                break
+        # Filter out domains or typical news/TLD sites just in case
+        clean_players = []
+        for p in players:
+            p_lower = p.lower()
+            if any(ext in p_lower for ext in [".com", ".org", ".net", ".co.uk", "insideevs", "fleetworld", "news", "press"]):
+                continue
+            if p not in clean_players:
+                clean_players.append(p)
 
-        if len(players) < 3:
-            for row in raw_results:
-                label = _domain_to_label(row.get("domain", ""))
-                if label in {"News", "Investor", "Investors", "Press", "Blog", "Unknown"}:
-                    continue
-                if label not in players:
-                    players.append(label)
-                if len(players) >= 3:
-                    break
-
+        players = clean_players[:3]
         while len(players) < 3:
             players.append("Unknown")
 
