@@ -19,4 +19,4 @@ marshmallow==3.21.3
 gunicorn==22.0.0
 
 # ── Database (Uncomment for PostgreSQL) ──────────────────────────────────────
-# psycopg2-binary==2.9.9
+psycopg2-binary==2.9.9
