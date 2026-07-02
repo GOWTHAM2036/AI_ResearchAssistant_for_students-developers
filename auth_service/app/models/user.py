@@ -71,6 +71,28 @@ class User(db.Model):
         default=lambda: datetime.now(timezone.utc),
     )
 
+    # ── Constructor ───────────────────────────────────────────────────────────
+    def __init__(
+        self,
+        name: str = "",
+        email: str | None = None,
+        password_hash: str | None = None,
+        phone: str | None = None,
+        google_id: str | None = None,
+        auth_provider: str = "email",
+        **kwargs,
+    ):
+        self.name = name
+        self.email = email
+        self.password_hash = password_hash
+        self.phone = phone
+        self.google_id = google_id
+        self.auth_provider = auth_provider
+        
+        # Set any additional keyword arguments passed in
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
     # ── Representation ────────────────────────────────────────────────────────
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r} provider={self.auth_provider}>"
