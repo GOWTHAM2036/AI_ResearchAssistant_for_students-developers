@@ -56,7 +56,7 @@ class ProductionConfig(BaseConfig):
     DEBUG: bool = False
 
     # In production, DATABASE_URL MUST be set; never fall back to SQLite.
-    SQLALCHEMY_DATABASE_URI: str = os.environ["DATABASE_URL"]  # raises KeyError if missing
+    SQLALCHEMY_DATABASE_URI: str = os.environ.get("DATABASE_URL", "")
 
 
 # ── Config registry ────────────────────────────────────────────────────────────
@@ -72,4 +72,8 @@ def get_config(env: str = "development"):
     config_class = _CONFIG_MAP.get(env)
     if config_class is None:
         raise ValueError(f"Unknown environment '{env}'. Choose from: {list(_CONFIG_MAP.keys())}")
+    
+    if env == "production" and not os.environ.get("DATABASE_URL"):
+        raise KeyError("DATABASE_URL environment variable is required in production environment.")
+        
     return config_class
