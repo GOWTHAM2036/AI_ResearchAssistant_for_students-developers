@@ -17,7 +17,7 @@ from backend.config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG, GROQ_API_KEY
 from backend.history_store import init_history_store, list_history_entries, get_history_entry
 
 # ── Auth system imports ──────────────────────────────────
-from auth_service.app.extensions import db, bcrypt, jwt
+from auth_service.app.extensions import db, migrate, bcrypt, jwt
 from auth_service.app.routes.auth_routes import auth_bp
 from auth_service.app.routes.protected_routes import protected_bp
 from auth_service.app.routes.google_routes import google_bp
@@ -37,13 +37,18 @@ load_dotenv(os.path.join(_PROJECT_ROOT, ".env"))
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
 app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-me-in-prod-min-32bytes!")
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(_PROJECT_ROOT, 'auth.db')}")
+
+_raw_db_url = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(_PROJECT_ROOT, 'auth.db')}")
+if _raw_db_url and _raw_db_url.startswith("postgres://"):
+    _raw_db_url = _raw_db_url.replace("postgres://", "postgresql://", 1)
+app.config["SQLALCHEMY_DATABASE_URI"] = _raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["BCRYPT_LOG_ROUNDS"] = 4  # fast for dev, increase for prod
 app.config["GOOGLE_CLIENT_ID"] = os.environ.get("GOOGLE_CLIENT_ID", "")
 
 # ── Initialize auth extensions ───────────────────────────
 db.init_app(app)
+migrate.init_app(app, db)
 bcrypt.init_app(app)
 jwt.init_app(app)
 

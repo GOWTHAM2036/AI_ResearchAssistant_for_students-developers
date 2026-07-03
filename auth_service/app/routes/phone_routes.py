@@ -16,7 +16,7 @@ import os
 import random
 import time
 import logging
-from flask import Blueprint, request
+from flask import Blueprint, request, current_app
 
 from ..extensions import db
 from ..models.user import User
@@ -119,7 +119,7 @@ def send_otp():
     }
 
     # Include OTP in response ONLY in development (for testing convenience)
-    is_dev = os.environ.get("FLASK_ENV", "development") == "development"
+    is_dev = current_app.debug
     if is_dev:
         response_data["otp_dev_only"] = otp
 

@@ -32,9 +32,13 @@ def create_app(env: str = "development") -> Flask:
     # ── Register blueprints ───────────────────────────────────────────────────
     from .routes.auth_routes import auth_bp
     from .routes.protected_routes import protected_bp
+    from .routes.google_routes import google_bp
+    from .routes.phone_routes import phone_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(protected_bp, url_prefix="/api")
+    app.register_blueprint(google_bp, url_prefix="/api/auth/google")
+    app.register_blueprint(phone_bp, url_prefix="/api/auth/phone")
 
     # ── Create DB tables if they don't exist (dev/test only) ──────────────────
     with app.app_context():

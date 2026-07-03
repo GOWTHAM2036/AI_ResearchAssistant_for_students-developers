@@ -26,11 +26,14 @@ class BaseConfig:
     # ── Database ───────────────────────────────────────────────────────────────
     # Default to SQLite for local dev; override DATABASE_URL for PostgreSQL.
     # PostgreSQL example:  postgresql://user:pass@localhost:5432/auth_db
-    SQLALCHEMY_DATABASE_URI: str = os.environ.get(
-        "DATABASE_URL",
-        "sqlite:///auth.db",  # stored in instance/ folder by Flask
-    )
+    _raw_db_url = os.environ.get("DATABASE_URL", "sqlite:///auth.db")
+    if _raw_db_url and _raw_db_url.startswith("postgres://"):
+        _raw_db_url = _raw_db_url.replace("postgres://", "postgresql://", 1)
+    SQLALCHEMY_DATABASE_URI: str = _raw_db_url
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
+
+    # ── Google OAuth ───────────────────────────────────────────────────────────
+    GOOGLE_CLIENT_ID: str = os.environ.get("GOOGLE_CLIENT_ID", "")
 
     # ── bcrypt ─────────────────────────────────────────────────────────────────
     BCRYPT_LOG_ROUNDS: int = 12  # cost factor — increase for stricter security

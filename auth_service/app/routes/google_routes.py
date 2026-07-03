@@ -11,7 +11,7 @@ Flow:
 import os
 import logging
 import requests as http_requests
-from flask import Blueprint, request
+from flask import Blueprint, request, current_app
 
 from ..extensions import db
 from ..models.user import User
@@ -65,7 +65,7 @@ def google_login():
         google_data = google_resp.json()
 
         # Validate the audience (client ID) matches ours
-        expected_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+        expected_client_id = current_app.config.get("GOOGLE_CLIENT_ID", "")
         if expected_client_id and google_data.get("aud") != expected_client_id:
             print(f"[GOOGLE AUTH ERROR] Token audience mismatch. Expected: {expected_client_id}, Got: {google_data.get('aud')}", flush=True)
             return error_response("Token audience mismatch.", status_code=401)
